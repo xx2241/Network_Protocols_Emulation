@@ -69,8 +69,6 @@ def put_into_buffer(messageQ,data_buffer):
 	while True:
 		message = messageQ.get()
 		window_list['message_length'] = window_list['message_length']+len(message)
-		print(window_list['message_length'])
-		print(len(message))
 		for i in range(0,len(message)):
 			sequence_number = window_list['message_length']-len(message)+i
 			data = message[i]
@@ -114,6 +112,7 @@ def loss_rate_calculation(dropped, total):
 	loss_rate = float(dropped)/total
 	print('[Summary] '+str(dropped)+'/'+str(total)+' packets dropped, loss rate = '+str(loss_rate))
 	print('node> '),
+	sys.stdout.flush()
 
 
 					
@@ -180,7 +179,6 @@ def receive(peer_port,timer_list,window_list,data_buffer,received_seq_list,drop_
 							timer.start()
 						elif window_list['base'] == window_list['nextseq']:
 							timer.stop()
-							print('stop timer for packet %d'%packet['seq'])
 							if window_list['base'] == window_list['message_length']:
 								loss_rate_calculation(dropped,received_number_list[0])
 								timer.stop()

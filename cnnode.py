@@ -95,12 +95,11 @@ def update_routing_table(packet):
 			if int(port) == routing_table['local_port']:
 				if routing_table[str(client_port)]['distance']!=value['distance'] and routing_table[str(client_port)]['nexthop']==None:  ### update distance 
 					routing_table[str(client_port)]['distance']=value['distance']
-					neighbor_table[str(client_port)]=value['distance']
 					update_table['distance_update']=True
 
 	for port, value in packet.items():
 		if isinstance(value,dict):
-			distance = value['distance'] + neighbor_table[str(client_port)]
+			distance = value['distance'] + routing_table[str(client_port)]['distance']
 			if int(port) != routing_table['local_port']:
 				if routing_table.has_key(port):
 					if routing_table[port]['distance']>distance or routing_table[port]['nexthop']==client_port:
@@ -236,18 +235,12 @@ def broadcast_to_neighbor():
 			s.sendto(json.dumps(routing_table),('',int(port)))
 if __name__ == '__main__':
 	info_table ={'setup':False,'message_length':10,'is_last':False} ### port:expected_number!!!!  ## last -> start == True, alredy setup -> start == True, setup: send when first received
-	
 	routing_table = {'tag':'routing_table','local_port':None,'timestamp':None} # 'port':{'receive_from':False,'send_to':False,'distance':100,'received_number':0'discarded_number':0,'nexthop':None,'probability':None}
 	## when send_to==False and receive_from==False, it is not neighbor
 	queue_table = {}
 	original_distance = {}
 	update_table = {'dv_update':False,'distance_update':False}
 	initialization()
-	neighbor_table = {}
-	for port,value in routing_table.items():
-		if isinstance(value,dict):
-			if value['receive_from'] or value['send_to']:
-				neighbor_table[port]=routing_table[port]['distance']
 	for port,value in routing_table.items():
 		if isinstance(value,dict):
 			original_distance[port] = value['distance']
