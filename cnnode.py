@@ -29,7 +29,6 @@ class Probe():
 		### has sending interval
 		port = int(self.port)
 		s.sendto(json.dumps({'tag':'probe','seq':self.seq,'ack':self.ack,'local_port':routing_table['local_port']}),('',port))
-		# print(str(routing_table['local_port'])+' send packet %d '%self.seq+'to '+str(port))
 class Window():
 	def __init__(self,port):
 		self.base = 0
@@ -70,9 +69,6 @@ def send_probe(window,Summary_timer,DV_timer):
 					window.timer.start()
 				window.nextseq += 1
 			if window.timer.timeout():
-				# print('packet %d timeout'%window.base),
-				# print(' of port'),
-				# print(window.port)
 				window.timer.start()
 				for probe in window.probe_list:
 					probe.send()
@@ -84,10 +80,6 @@ def receive_ack(window):
 				packet = queue.get()
 		if packet['tag']=='probe' and packet['ack']==True and int(window.port)==packet['local_port'] and packet['seq']!=-1: ### ack never drop
 			# ### should judge the port
-			# print('receive ack'),
-			# print(packet['seq']),
-			# print('from '),
-			# print(packet['local_port'])
 			tmpbase = window.base
 			window.base = packet['seq']+1
 			window.move_list(tmpbase,info_table['message_length'])
@@ -101,11 +93,7 @@ def update_routing_table(packet):
 	for port, value in packet.items():
 		if isinstance(value,dict):
 			if int(port) == routing_table['local_port']:
-				# print(value['distance']),
-				# print(' of port '),
-				# print(client_port)
 				if routing_table[str(client_port)]['distance']!=value['distance'] and routing_table[str(client_port)]['nexthop']==None:  ### update distance 
-					# print('distance update from port '+str(client_port)+'original local port to port'+port+'='+str(routing_table[str(client_port)]['distance'])+', new distance '+str(value['distance']))
 					routing_table[str(client_port)]['distance']=value['distance']
 					update_table['distance_update']=True
 
@@ -115,7 +103,6 @@ def update_routing_table(packet):
 			if int(port) != routing_table['local_port']:
 				if routing_table.has_key(port):
 					if routing_table[port]['distance']>distance or routing_table[port]['nexthop']==client_port:
-						# print('update dv: port'+str(client_port)+' to port'+port+'='+str(value['distance'])+', local port to port'+str(client_port)+'='+str(routing_table[str(client_port)]['distance'])+', original distance to port'+port+'='+str(routing_table[port]['distance']))
 						update_table['dv_update'] = True
 						routing_table[port]['distance'] = distance
 						routing_table[port]['nexthop'] = client_port
@@ -132,30 +119,17 @@ def receive_probe_DV():
 		elif packet['tag']=='probe' and packet['ack']==False:
 			port = packet['local_port']
 			if discard_or_not(packet)==False:
-				# print('packet_seq '),
-				# print(packet['seq']),
-				# print(' receive from '),
-				# print(packet['local_port'])
-
 				if packet['seq']==info_table[str(port)]:
 					info_table[str(port)] += 1
 				s.sendto(json.dumps({'tag':'probe','seq':info_table[str(port)]-1,'ack':True,'local_port':routing_table['local_port']}),('',port))
-				# print('send ack%d to %d'%(info_table[str(port)]-1,port))
 			else:
 				pass
-				# print('packet_seq '),
-				# print(packet['seq']),
-				# print(' discard from '),
-				# print(packet['local_port'])
 			if packet['seq'] == info_table['message_length']-1:
 				info_table[str(port)]=0
 				loss_rate = cal_link_loss(routing_table[str(port)]['received_number'],routing_table[str(port)]['discarded_number'])
 				if loss_rate !=0 and routing_table[str(port)]['nexthop']==None:
 					routing_table[str(port)]['distance']=loss_rate
-				#print('['+str(time.time())+'] Link to '+str(port)+': '+str(routing_table[str(port)]['received_number'])+'packets received, '+str(routing_table[str(port)]['discarded_number'])+' packets lost, lost rate '+str(loss_rate))
 		elif packet['tag']=='routing_table':
-			# print('routing table received from'),
-			# print(packet['local_port'])
 			if info_table['setup']==False:
 				info_table['setup']= True			
 				receive_or_not = True
@@ -164,14 +138,16 @@ def receive_probe_DV():
 				update_routing_table(packet)
 			if update_table['dv_update'] == True:
 				print('['+str(time.time())+'] Node '+str(routing_table['local_port'])+' Rounting Table')
+				sys.stdout.flush()
 				for port, value in routing_table.items():
 					if isinstance(value,dict):
 						if value['nexthop']:
 							print('- ('+str(value['distance'])+') -> Node '+str(port)+'; Next hop -> Node '+str(value['nexthop']))
+							sys.stdout.flush()
 						else:
 							print('- ('+str(value['distance'])+') -> Node '+str(port))
+							sys.stdout.flush()
 def timer_update(Summary_timer,DV_timer):
-	### a new thread
 	while True:
 		if Summary_timer.timeout():
 			for port, value in routing_table.items():
@@ -179,16 +155,20 @@ def timer_update(Summary_timer,DV_timer):
 					if value['receive_from']==True:
 						loss_rate = cal_link_loss(value['received_number'],value['discarded_number'])
 						print('['+str(time.time())+'] Link to '+str(port)+': '+str(value['received_number'])+'packets received, '+str(value['discarded_number'])+' packets lost, lost rate '+str(loss_rate))
+						sys.stdout.flush()
 			Summary_timer.start()
 		if DV_timer.timeout():
 			update_table['distance_update']=False
 			print('['+str(time.time())+'] Node '+str(routing_table['local_port'])+' Rounting Table')
+			sys.stdout.flush()
 			for port,value in routing_table.items():
 				if isinstance(value,dict):
 					if value['nexthop']:
 						print('- ('+str(value['distance'])+') -> Node '+str(port)+'; Next hop -> Node '+str(value['nexthop']))
+						sys.stdout.flush()
 					else:
 						print('- ('+str(value['distance'])+') -> Node '+str(port))
+						sys.stdout.flush()
 					if value['receive_from'] or value['send_to']: ## if it is neighor
 						if original_distance[port] != value['distance']:  ## if update, update itself is not here!!
 							original_distance[port] = value['distance']
@@ -269,11 +249,20 @@ if __name__ == '__main__':
 			if value['send_to']:
 				queue = Queue.Queue()
 				queue_table[port] = queue
-	print(routing_table)
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	s.bind(('',routing_table['local_port']))
 	if info_table['is_last']== True:
 		broadcast_to_neighbor()
+		print('['+str(time.time())+'] Node '+str(routing_table['local_port'])+' Rounting Table')
+		sys.stdout.flush()
+		for port,value in routing_table.items():
+			if isinstance(value,dict):
+				if value['nexthop']:
+					print('- ('+str(value['distance'])+') -> Node '+str(port)+'; Next hop -> Node '+str(value['nexthop']))
+					sys.stdout.flush()
+				else:
+					print('- ('+str(value['distance'])+') -> Node '+str(port))
+					sys.stdout.flush()
 	Summary_timer = Timer(1)
 	DV_timer = Timer(3)
 	t0 = Thread(target=timer_update,args=(Summary_timer,DV_timer,))
@@ -293,6 +282,17 @@ if __name__ == '__main__':
 				t2.start()
 				t3.start()
 			elif info_table['setup']:
+				if info_table['is_last']==False:
+					print('['+str(time.time())+'] Node '+str(routing_table['local_port'])+' Rounting Table')
+					sys.stdout.flush()
+					for port,value in routing_table.items():
+						if isinstance(value,dict):
+							if value['nexthop']:
+								print('- ('+str(value['distance'])+') -> Node '+str(port)+'; Next hop -> Node '+str(value['nexthop']))
+								sys.stdout.flush()
+							else:
+								print('- ('+str(value['distance'])+') -> Node '+str(port))
+								sys.stdout.flush()
 				Summary_timer.start()
 				DV_timer.start()
 	while True:
